@@ -200,6 +200,7 @@ def process_pdf(file):
                 # Run the chain with the length preference
                 result = self.qa_chain.invoke({
                     "question": inputs["question"],
+                    "input": inputs["question"],
                     "length_preference": inputs["length_preference"],
                     "chat_history": chat_history
                 })
@@ -260,6 +261,7 @@ if st.session_state.conversation and st.session_state.doc_metadata:
             query = "Please provide a comprehensive summary of this document. Include the main topic, key points, and any important conclusions."
             result = st.session_state.conversation({
                 "question": query,
+                "input": query,
                 "length_preference": length_prompts[response_length]
             })
             st.session_state.chat_history.append(("Summary Request", result["answer"]))
@@ -301,8 +303,8 @@ if st.session_state.conversation:
         st.header("Conversation History")
         for i, (question, answer) in enumerate(st.session_state.chat_history):
             # Skip displaying the summary in the conversation
-            if question == "Summary Request":
-                continue
+            # if question == "Summary Request":
+            #     continue
             with st.expander(f"Q: {question}", expanded=True):
                 st.write(answer)
 
