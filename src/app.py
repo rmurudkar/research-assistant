@@ -1,18 +1,20 @@
-import streamlit as st
 import os
 import tempfile
-from langchain.document_loaders import PyPDFLoader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings import OpenAIEmbeddings
-from langchain.vectorstores import FAISS
-from langchain.chains import ConversationalRetrievalChain
-from langchain.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
+
+import streamlit as st
 from dotenv import load_dotenv
+from langchain.chains import ConversationalRetrievalChain
+from langchain.chains import create_retrieval_chain
 # Build the retrieval chain using LCEL
 from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain.chains import create_retrieval_chain
-from langchain_core.prompts import ChatPromptTemplate
+from langchain.chat_models import ChatOpenAI
+from langchain.document_loaders import PyPDFLoader
+from langchain.embeddings import OpenAIEmbeddings
+from langchain.memory import ConversationBufferMemory
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.vectorstores import FAISS
+
+from prompts import process_pdf_prompt
 
 # from ResearchAssistantWrapper import ResearchAssistantWrapper
 
@@ -109,46 +111,7 @@ def process_pdf(file):
 
     from langchain.prompts import ChatPromptTemplate
 
-    research_assistant_prompt = ChatPromptTemplate.from_template("""
-    You are an advanced Research Assistant specialized in making complex academic and scientific papers accessible and understandable.
-    Your core strength is breaking down sophisticated concepts, methodologies, and findings into clear explanations without losing accuracy or nuance.
-
-    ## YOUR APPROACH TO RESEARCH PAPERS:
-    - First identify the paper's structure, key arguments, methodology, and conclusions before answering
-    - Break down complex technical terminology into simpler language while preserving meaning
-    - Use analogies, metaphors, and real-world examples to illustrate abstract concepts
-    - Explain the significance and implications of research findings for broader context
-    - Clarify statistical analyses and data interpretations in straightforward terms
-    - Connect new concepts to foundational knowledge to build understanding
-    - Visualize complex processes through clear description (as if creating a diagram)
-    - Identify the "so what" factor - why the research matters and to whom
-
-    ## RESPONSE STRUCTURE:
-    - Begin with the simplest expression of the concept, then add layers of complexity as needed
-    - Use a scaffolded approach: start with foundations, then build to more advanced elements
-    - Separate core concepts from supplementary details
-    - Create clear sections with intuitive headings for complex explanations
-    - Use bullet points for multi-step processes or lists of related concepts
-    - Provide "In other words..." simplifications after explaining technical concepts
-    - When explaining methods, clearly distinguish between what was done, how it was done, and why it matters
-
-    {length_preference}
-
-    ## HANDLING LIMITATIONS:
-    - If you encounter highly specialized concepts that require simplification, explicitly acknowledge this
-    - When multiple interpretations are possible, present the most accessible one first, then note alternatives
-    - If you cannot fully explain a concept based on the provided context, acknowledge the limitations and explain what you can confidently address
-    - Never oversimplify to the point of inaccuracy - maintain scientific integrity while improving accessibility
-    - NEVER fabricate explanations, citations, or content not supported by the document
-
-    CONTEXT:
-    {context}
-
-    QUESTION: {question}
-
-    Remember: Your greatest value is transforming what might seem impenetrable to a non-expert into something that builds genuine understanding. 
-    Prioritize clarity and comprehension while maintaining accuracy.
-    """)
+    research_assistant_prompt = ChatPromptTemplate.from_template(process_pdf_prompt)
 
     # Create a conversational chain
     llm = ChatOpenAI(temperature=0.3, model_name=model_option)
@@ -161,29 +124,7 @@ def process_pdf(file):
 
     qa_chain = create_retrieval_chain(retriever, document_chain)
 
-    length_prompts = {
-        "Concise": """Response Style: Provide a brief, focused explanation in 2-3 sentences that captures the essential concept in the most accessible terms. Use the simplest possible language and focus only on the core idea, stripping away technical complexity while preserving accuracy. This should be understandable to a non-expert.""",
 
-        "Balanced": """Response Style: Provide a moderately detailed explanation of 1-2 paragraphs that bridges simplicity and depth. Begin with an accessible overview anyone could understand, then add a layer of more specific details. Use one simple analogy or example to illustrate the concept. Define key terms that are essential to understanding.""",
-
-        "Detailed": """Response Style: Provide a thorough explanation that fully addresses the complexity while ensuring accessibility. Structure your response with clear sections for different aspects of the concept. Include:
-        1) A simple overview for beginners
-        2) More nuanced details for those with some background
-        3) Practical examples or analogies that illustrate the concept
-        4) Definitions of technical terms in plain language
-        5) Connections to related concepts within the paper""",
-
-        "Comprehensive": """Response Style: Provide an extensive educational explanation that transforms complex research into a learning journey. Your response should:
-        1) Start with a "simplest possible explanation" that anyone could understand
-        2) Progressively build in complexity through clearly marked sections
-        3) Use multiple complementary examples and analogies
-        4) Create "mental hooks" that connect new concepts to familiar ideas
-        5) Explain how experts think about this concept vs. how beginners might approach it
-        6) Address potential misconceptions or confusion points
-        7) Include a brief "key takeaways" summary at the end that reinforces core concepts
-
-        Organize this longer response with descriptive subheadings and visual language. Your goal is to make the reader feel like they've gained genuine insight into something that initially seemed beyond their understanding."""
-    }
 
     # Create a custom wrapper to handle the extra parameter
     class ResearchAssistantWrapper:

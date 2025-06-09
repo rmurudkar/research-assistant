@@ -2,3 +2,7 @@ venv
 *.pdf
 .idea*
 .env
+.DS_Store
+*.pdf
+*.txt
+*.html

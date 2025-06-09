@@ -6,3 +6,6 @@ tiktoken
 faiss-cpu 
 streamlit 
 dotenv
+pyvis
+plotly
+nbformat>=4.2.0
