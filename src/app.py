@@ -46,6 +46,14 @@ if 'doc_metadata' not in st.session_state:
     st.session_state.doc_metadata = None
 if 'question_submitted' not in st.session_state:
     st.session_state.question_submitted = False
+if 'concepts' not in st.session_state:
+    concepts = ""
+if 'edges' not in st.session_state:
+    edges = ""
+
+
+
+
 
 # Add a sidebar
 with st.sidebar:

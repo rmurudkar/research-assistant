@@ -1,14 +1,11 @@
-import streamlit as st
-import pandas as pd
-import networkx as nx
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
-import re
-import numpy as np
 from collections import Counter, defaultdict
-import io
-import base64
+
+import networkx as nx
+import numpy as np
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
 
 # Set page config
 st.set_page_config(
@@ -180,7 +177,6 @@ def get_concept_categories():
                          'GFP tracking of differentiation']
     }
 
-def get_concept_categories(text):
 
 
 def categorize_concept(concept, categories):
@@ -286,103 +282,6 @@ def create_sankey_diagram(relationships):
     fig.update_layout(
         title_text="Concept Flow Diagram",
         font_size=10,
-        height=600
-    )
-
-    return fig
-
-
-def create_hierarchical_tree(relationships):
-    """Create a hierarchical tree visualization"""
-    # Build a graph to find the most central concepts
-    G = nx.DiGraph()
-    for rel in relationships:
-        G.add_edge(rel['from'], rel['to'])
-
-    # Find concepts with highest in-degree (most targeted)
-    in_degrees = dict(G.in_degree())
-    out_degrees = dict(G.out_degree())
-
-    # Create a hierarchical layout
-    fig = go.Figure()
-
-    # Use a circular layout for better visibility
-    pos = nx.spring_layout(G, k=2, iterations=50, seed=42)
-
-    # Calculate node sizes based on total degree
-    node_degrees = {node: in_degrees.get(node, 0) + out_degrees.get(node, 0) for node in G.nodes()}
-    max_degree = max(node_degrees.values()) if node_degrees else 1
-
-    categories = get_concept_categories()
-    category_colors = {
-        'Materials': '#ff7f0e',
-        'Biological Processes': '#2ca02c',
-        'Research Methods': '#d62728',
-        'Measurements': '#9467bd',
-        'Other': '#8c564b'
-    }
-
-    # Add edges first (so they appear behind nodes)
-    for edge in G.edges():
-        x0, y0 = pos[edge[0]]
-        x1, y1 = pos[edge[1]]
-
-        # Add arrowhead
-        fig.add_annotation(
-            x=x1, y=y1,
-            ax=x0, ay=y0,
-            xref='x', yref='y',
-            axref='x', ayref='y',
-            showarrow=True,
-            arrowhead=2,
-            arrowsize=1,
-            arrowwidth=2,
-            arrowcolor='rgba(128,128,128,0.6)'
-        )
-
-    # Add nodes
-    for node in G.nodes():
-        x, y = pos[node]
-        category = categorize_concept(node, categories)
-        color = category_colors.get(category, '#8c564b')
-
-        size = 20 + (node_degrees[node] / max_degree) * 30
-
-        # Create hover text
-        connections_in = [n for n in G.predecessors(node)]
-        connections_out = [n for n in G.successors(node)]
-
-        hover_text = f"<b>{node}</b><br>"
-        hover_text += f"Category: {category}<br>"
-        hover_text += f"Incoming: {len(connections_in)}<br>"
-        hover_text += f"Outgoing: {len(connections_out)}"
-
-        fig.add_trace(go.Scatter(
-            x=[x], y=[y],
-            mode='markers+text',
-            marker=dict(
-                size=size,
-                color=color,
-                line=dict(width=2, color='white'),
-                opacity=0.8
-            ),
-            text=node if len(node) < 20 else node[:17] + '...',
-            textposition="middle center",
-            textfont=dict(size=8, color="white"),
-            hovertext=hover_text,
-            hoverinfo='text',
-            showlegend=False,
-            name=node
-        ))
-
-    fig.update_layout(
-        title="Interactive Concept Network",
-        showlegend=False,
-        hovermode='closest',
-        margin=dict(b=20, l=5, r=5, t=40),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        plot_bgcolor='white',
         height=600
     )
 
