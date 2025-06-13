@@ -7,3 +7,6 @@ faiss-cpu
 streamlit 
 dotenv
 PyPDF2
+pyvis
+plotly
+nbformat>=4.2.0
