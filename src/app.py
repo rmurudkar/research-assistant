@@ -14,7 +14,9 @@ from langchain.memory import ConversationBufferMemory
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 
-from prompts import process_pdf_prompt
+from prompts.process_pdf_prompt import process_pdf_prompt
+from parse_categories_and_concept_output import parse_category_string
+from category_and_concept_analyzer import get_categories_and_concepts_and_edges
 
 # from ResearchAssistantWrapper import ResearchAssistantWrapper
 
@@ -46,15 +48,97 @@ if 'doc_metadata' not in st.session_state:
     st.session_state.doc_metadata = None
 if 'question_submitted' not in st.session_state:
     st.session_state.question_submitted = False
-if 'concepts' not in st.session_state:
-    concepts = ""
+if 'categories' not in st.session_state:
+    st.session_state.categories = ""
+if 'relationships' not in st.session_state:
+    st.session_state.relationships = ""
 if 'edges' not in st.session_state:
     edges = ""
 
 
+st.markdown("""
+<style>
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #1f77b4;
+        text-align: center;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: linear-gradient(90deg, #f0f8ff, #e6f3ff);
+        border-radius: 10px;
+        border-left: 5px solid #1f77b4;
+    }
+
+    .concept-card {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #17a2b8;
+        margin: 0.5rem 0;
+    }
+
+    .relationship-card {
+        background: #9c790b;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #ffc107;
+        margin: 0.5rem 0;
+    }
+
+    .metric-card {
+        background: #d4edda;
+        padding: 1rem;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid #c3e6cb;
+    }
+
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 24px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 50px;
+        white-space: pre-wrap;
+        background-color: #g0f2f6;
+        border-radius: 4px 4px 0px 0px;
+        gap: 1px;
+        padding-top: 10px;
+        padding-bottom: 10px;
+    }
+
+    .selected-concept {
+        background: #0d5678;
+        border: 2px solid #2196f3;
+        border-radius: 8px;
+        padding: 10px;
+        margin: 5px 0;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
+def parse_relationships(text):
+    """Parse the relationship text into structured data"""
+    relationships = []
+    sections = text.strip().split('\n\n')
 
+    for section in sections:
+        lines = section.strip().split('\n')
+        if len(lines) >= 3:
+            from_concept = lines[0].replace('FROM: ', '').strip()
+            to_concept = lines[1].replace('TO: ', '').strip()
+            relationship = lines[2].replace('RELATIONSHIP: ', '').strip()
+
+            relationships.append({
+                'from': from_concept,
+                'to': to_concept,
+                'relationship': relationship,
+                'weight': len(relationship.split())
+            })
+
+    return relationships
 # Add a sidebar
 with st.sidebar:
     st.header("Configuration")
@@ -132,6 +216,22 @@ def process_pdf(file):
 
     qa_chain = create_retrieval_chain(retriever, document_chain)
 
+    categories, edges = get_categories_and_concepts_and_edges(temp_filepath)
+
+    print("CATEGORIES: ", categories)
+    print("EDGES", edges)
+
+    # relationships_stg = get_relationships(edges)
+    relationships = []
+    for edge in edges:
+        relationships.append({
+            'from': edge[0],
+            'to': edge[1],
+            'relationship': edge[2]
+        })
+
+    print("RELATIONSHIPS", relationships)
+
 
 
     # Create a custom wrapper to handle the extra parameter
@@ -170,7 +270,7 @@ def process_pdf(file):
 
     conversation = ResearchAssistantWrapper(qa_chain, memory)
 
-    return conversation, vectorstore, doc_metadata
+    return conversation, vectorstore, doc_metadata, categories, relationships, edges
 
 
 # Define callback for question submission
@@ -185,8 +285,7 @@ if uploaded_file and st.session_state.processed_file != uploaded_file.name:
     else:
         with st.spinner("Processing your PDF... This may take a minute."):
             try:
-                st.session_state.conversation, st.session_state.vectorstore, st.session_state.doc_metadata = process_pdf(
-                    uploaded_file)
+                st.session_state.conversation, st.session_state.vectorstore, st.session_state.doc_metadata, st.session_state.categories, st.session_state.relationships, st.session_state.edges = process_pdf(uploaded_file)
                 st.session_state.processed_file = uploaded_file.name
                 st.session_state.chat_history = []
                 st.success("File processed successfully!")
@@ -277,6 +376,129 @@ if st.session_state.vectorstore:
                     st.write(doc.page_content)
                     st.caption(f"Source: Page {doc.metadata.get('page', 'N/A')}")
 
+def categorize_concept(concept, categories):
+    """Categorize a concept based on predefined categories"""
+    for category, concepts in categories.items():
+        if any(c.lower() in concept.lower() or concept.lower() in c.lower() for c in concepts):
+            return category
+    return 'Other'
+
+
+
+
+
+
+def create_concept_explorer(relationships, categories):
+    """Create an interactive concept explorer"""
+    # Get all unique concepts
+    all_concepts = set()
+    for rel in relationships:
+        all_concepts.add(rel['from'])
+        all_concepts.add(rel['to'])
+
+    # Categorize concepts
+    categorized_concepts = {}
+    for concept in all_concepts:
+        category = categorize_concept(concept, categories)
+        if category not in categorized_concepts:
+            categorized_concepts[category] = []
+        categorized_concepts[category].append(concept)
+
+    # Sort concepts within categories
+    for category in categorized_concepts:
+        categorized_concepts[category].sort()
+
+    return categorized_concepts
+
+
+tab1, tab2, tab4 = st.tabs(["🎯 Concept Explorer", "🌊 Flow Diagram", "📊 Analytics"])
+# categories, edges = get_categories_and_concepts_and_edges('uploaded_pdf.pdf')
+# relationships = get_relationships(edges)
+# relationships = parse_relationships(relationships)
+
+def show_concept_details(concept, relationships):
+    """Show detailed information about a selected concept"""
+    # Find all relationships involving this concept
+    related_relationships = []
+    for rel in relationships:
+        if rel['from'] == concept or rel['to'] == concept:
+            related_relationships.append(rel)
+
+    if not related_relationships:
+        st.write("No relationships found for this concept.")
+        return
+
+    # Show concept information
+    category = categorize_concept(concept, st.session_state.categories)
+
+    st.markdown(f"""
+    <div class="selected-concept">
+        <h3>🎯 {concept}</h3>
+        <p><strong>Category:</strong> {category}</p>
+        <p><strong>Total Connections:</strong> {len(related_relationships)}</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Show incoming and outgoing relationships
+    incoming = [rel for rel in related_relationships if rel['to'] == concept]
+    outgoing = [rel for rel in related_relationships if rel['from'] == concept]
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.markdown("#### ⬅️ What affects this concept:")
+        if incoming:
+            for rel in incoming:
+                st.markdown(f"""
+                <div class="relationship-card">
+                    <strong>{rel['from']}</strong><br>
+                    <small>{rel['relationship']}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.write("No incoming relationships found.")
+
+    with col2:
+        st.markdown("#### ➡️ What this concept affects:")
+        if outgoing:
+            for rel in outgoing:
+                st.markdown(f"""
+                <div class="relationship-card">
+                    <strong>{rel['to']}</strong><br>
+                    <small>{rel['relationship']}</small>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.write("No outgoing relationships found.")
+
+
+
+if st.session_state.vectorstore:
+
+    with tab1:
+        st.markdown("### 🎯 Explore Concepts by Category")
+        st.markdown("Click on any concept below to see its connections and relationships.")
+
+        categorized_concepts = create_concept_explorer(st.session_state.relationships, st.session_state.categories)
+
+        # Create concept explorer with categories
+        for category, concepts in categorized_concepts.items():
+            with st.expander(f"📁 {category} ({len(concepts)} concepts)", expanded=True):
+                cols = st.columns(3)
+                for i, concept in enumerate(concepts):
+                    with cols[i % 3]:
+                        if st.button(concept, key=f"concept_{concept}", use_container_width=True):
+                            st.session_state.selected_concept = concept
+
+        # Show details for selected concept
+        if hasattr(st.session_state, 'selected_concept'):
+            st.markdown("---")
+            show_concept_details(st.session_state.selected_concept, st.session_state.relationships)
+
+
+
+
 # Add a footer
 st.markdown("---")
 st.caption("Document Analyzer & Research Assistant - Built with Streamlit, LangChain, and OpenAI")
+

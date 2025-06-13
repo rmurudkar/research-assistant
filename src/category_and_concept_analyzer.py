@@ -4,9 +4,9 @@ import PyPDF2
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from prompts import get_concepts_from_text_prompt, get_categorical_concepts
+from prompts.get_concepts_from_text import get_concepts_from_text_prompt
+from parse_categories_and_concept_output import parse_category_string
 
-load_dotenv()
 
 def extract_text_from_pdf(file_path):
     with open(file_path, "rb") as f:
@@ -18,11 +18,11 @@ def extract_text_from_pdf(file_path):
                 text += page_text
             # if len(text) > max_chars:
             #     break
-        return text # [:max_chars]
+        return text  # [:max_chars]
+
 
 # 🧠 Prompt for concept extraction
 def get_concepts_from_text(text_chunk):
-
     formatted_prompt = get_concepts_from_text_prompt.format(document_chunk=text_chunk)
 
     client = OpenAI()
@@ -30,13 +30,15 @@ def get_concepts_from_text(text_chunk):
     completion = client.chat.completions.create(
         model='gpt-4o',
         messages=[
-            {"role": "system", "content": "You're a helpful assistant that extracts knowledge graphs from academic text."},
+            {"role": "system",
+             "content": "You're a helpful assistant that extracts knowledge graphs from academic text."},
             {"role": "user", "content": formatted_prompt}
         ],
 
     )
 
     return completion.choices[0].message.content
+
 
 def get_categorical_concepts(paper_context, concepts_list):
     prompt = f"""You are a research analysis expert. Given the following list of concepts from a research paper, please:
@@ -67,14 +69,13 @@ def get_categorical_concepts(paper_context, concepts_list):
     - Between 4-6 total categories
     - Balanced in terms of number of concepts per category when possible"""
 
-
-
     client = OpenAI()
 
     completion = client.chat.completions.create(
         model='gpt-4o',
-        messages = [
-            {'role': 'system', 'content': "You are a research analysis expert specializing in categorizing scientific concepts." },
+        messages=[
+            {'role': 'system',
+             'content': "You are a research analysis expert specializing in categorizing scientific concepts."},
             {"role": "user", "content": prompt}
 
         ],
@@ -84,19 +85,11 @@ def get_categorical_concepts(paper_context, concepts_list):
 
     return completion.choices[0].message.content
 
-# 🚀 Run the process
-if __name__ == "__main__":
-    print("📚 Extracting text from PDF...")
-    text_chunk = extract_text_from_pdf("uploaded_pdf.pdf")
-    # print("✅ Extracted text (truncated):\n", text_chunk, "...\n")
 
-    print("🤖 Sending to OpenAI for concept extraction...\n")
-    output = get_concepts_from_text(text_chunk)
-    # print(output)
+def get_categories_and_concepts_and_edges(file):
+    text_chunk = extract_text_from_pdf(file)
 
-    print("🔎 Extracted Concept Relationships:\n")
-    # print(output)
-
+    concepts = get_concepts_from_text(text_chunk)
 
     # Parse into (source, target, relationship) tuples
     def parse_llm_edges(text):
@@ -112,14 +105,13 @@ if __name__ == "__main__":
 
         return edges, set(concepts)
 
+    # Run parser
+    edges, concepts = parse_llm_edges(concepts)
 
     # Run parser
-    edges, concepts = parse_llm_edges(output)
+    categories = get_categorical_concepts(text_chunk, list(concepts))
 
-    # Print result
-    for src, tgt, label in edges:
-        print(f"FROM: {src}\nTO: {tgt}\nRELATIONSHIP: {label}\n")
-
-    print(get_categorical_concepts(text_chunk, list(concepts)))
+    categories = parse_category_string(category_string=categories)
 
 
+    return categories, edges

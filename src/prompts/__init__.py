@@ -1,2 +1,2 @@
-from process_pdf_prompt import process_pdf_prompt
-from get_concepts_from_text import get_concepts_from_text_prompt
+# from process_pdf_prompt import process_pdf_prompt
+# from get_concepts_from_text import get_concepts_from_text_prompt
